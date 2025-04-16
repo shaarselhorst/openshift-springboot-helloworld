@@ -1,15 +1,28 @@
-# Use a Java 21 JRE base image
-FROM openjdk:21-jdk-slim
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+# Stage 1: Build the application using Maven and JDK
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy the JAR file from the target directory into the container at /app/app.jar
-COPY target/demo-*.jar app.jar
+# Prepare dependencies
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Copy the entire project
+COPY src ./src
+
+# Build the project using Maven
+RUN mvn package -DskipTests
+
+# Stage 2: Create the final runtime image
+FROM openjdk:21-jdk-slim
+
+WORKDIR /app
+
+# Copy only the built JAR file from the 'builder' stage (Stage 1)
+COPY --from=builder /app/target/demo-*.jar app.jar
 
 # Expose the default Spring Boot port
 EXPOSE 8080
 
-# The command to run when the container starts
+# Command to run the application
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
